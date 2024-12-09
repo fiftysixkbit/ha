@@ -1,0 +1,246 @@
+#logger:
+#  default: debug
+
+mqtt:
+  host: 192.168.2.84
+  user: mqtt
+  password: mosquito
+  topic_prefix: frigate
+  client_id: frigate
+
+detectors:
+#  cpu1:
+#    type: cpu
+#    num_threads: 2
+  coral:
+    type: edgetpu
+    device: pci
+
+snapshots:
+  enabled: true
+  timestamp: false
+
+record:
+  enabled: true
+  retain:
+    days: 7
+    mode: all
+  events:
+    retain:
+      default: 30
+      mode: active_objects
+#  sync_recordings: true
+
+#birdseye:
+#  enabled: true
+#  mode: continuous
+#  restream: true
+#  width: 2000
+#  height: 2560
+
+objects:
+  track:
+    - person
+    - package
+
+  filters:
+    dog:
+      min_score: .7
+      threshold: .9
+    cat:
+      min_score: .65
+      threshold: .8
+    face:
+      min_score: .7
+    package:
+      min_score: .65
+      threshold: .9
+    license_plate:
+      min_score: .6
+    amazon:
+      min_score: .75
+    ups:
+      min_score: .75
+    fedex:
+      min_score: .75
+    person:
+      min_score: .65
+      threshold: .85
+    car:
+      min_score: .65
+      threshold: .85
+
+ffmpeg:
+  hwaccel_args: preset-nvidia-h264
+#    - -c:v
+#    - h264_qsv
+#    - -hwaccel
+#    - vaapi
+#    - -hwaccel_device
+#    - /dev/dri/renderD128
+#    - yuv420p
+
+#  input_args:
+#    - -avoid_negative_ts
+#    - make_zero
+#    - -fflags
+#    - nobuffer+genpts+discardcorrupt
+#    - -flags
+#    - low_delay
+#    - -strict
+#    - experimental
+#    - -analyzeduration
+#    - 1000M
+#    - -probesize
+#    - 1000M
+  output_args:
+    record: preset-record-generic-audio-aac
+
+model:
+  path: plus://<KEY>
+
+go2rtc:
+  streams:
+    front_door:
+      - rtsp://<AUTH>@192.168.3.201:554/stream2
+    front_door_rotated:
+      - ffmpeg:front_door#video=h264#rotate=270#audio=copy#audio=opus#hardware
+
+    back_door:
+      - rtsp://<AUTH>@192.168.3.202:554/stream2
+    back_door_rotated:
+      - ffmpeg:back_door#video=h264#rotate=270#audio=copy#audio=opus#hardware
+
+    garage:
+      - rtsp://<AUTH>@192.168.3.203:554/stream2
+      - ffmpeg:garage#audio=copy#audio=opus#hardware
+
+    living_room:
+      - rtsp://<AUTH>@192.168.3.204:554/stream2
+      - ffmpeg:living_room#audio=copy#audio=opus#hardware
+
+    side_door:
+      - rtsp://<AUTH>@192.168.3.205:88/videoSub
+      - ffmpeg:side_door#audio=copy#audio=opus#hardware
+
+
+cameras:
+  front_door: # <------ Name the camera
+    enabled: true
+    ui:
+      order: 1
+    ffmpeg:
+      inputs:
+        - path: rtsp://localhost:8554/front_door_rotated # <----- The stream you want to use for detection
+          input_args: preset-rtsp-restream
+          roles:
+            - detect
+            - record
+    live:
+      stream_name: front_door_rotated
+    detect:
+      enabled: true # <---- disable detection until you have a working camera feed
+      width: 720
+      height: 1280
+      fps: 5
+
+    motion:
+      mask:
+        - 0.001,0.674,0.042,0.673,0.045,0.999,0.001,0.998
+        - 0.126,0.165,0.33,0.147,0.549,0.143,0.712,0.146,0.905,0.161,0.899,0.05,0.709,0.019,0.467,0.006,0.235,0.023,0.07,0.08
+    objects:
+      filters:
+        person:
+          mask: 
+            0.127,0.165,0.329,0.148,0.542,0.143,0.705,0.147,0.903,0.161,0.898,0.051,0.71,0.02,0.464,0.006,0.233,0.024,0.071,0.082
+  back_door: # <------ Name the camera
+    enabled: true
+    ui:
+      order: 2
+    ffmpeg:
+      inputs:
+        - path: rtsp://localhost:8554/back_door_rotated # <----- The stream you want to use for detection
+          input_args: preset-rtsp-restream
+          roles:
+            - detect
+            - record
+    live:
+      stream_name: back_door_rotated
+    detect:
+      enabled: true # <---- disable detection until you have a working camera feed
+      width: 720
+      height: 1280
+      fps: 5
+
+    motion:
+      mask: 0.001,0.674,0.043,0.674,0.049,0.999,0.001,0.999
+  garage: # <------ Name the camera
+    enabled: true
+    ui:
+      order: 4
+    ffmpeg:
+      inputs:
+        - path: rtsp://localhost:8554/garage # <----- The stream you want to use for detection
+          input_args: preset-rtsp-restream
+          roles:
+            - detect
+            - record
+    live:
+      stream_name: garage
+    detect:
+      enabled: true # <---- disable detection until you have a working camera feed
+      width: 1280
+      height: 720
+      fps: 5
+
+    motion:
+      mask: 0.327,0.045,0.328,0,0,0,0,0.047
+  living_room: # <------ Name the camera
+    enabled: true
+    snapshots:
+      enabled: false
+    record:
+      enabled: false
+    motion:
+      enabled: false
+      mask: 0,0,0,0.042,0.299,0.043,0.3,0
+    ui:
+      order: 5
+    ffmpeg:
+      inputs:
+        - path: rtsp://localhost:8554/living_room # <----- The stream you want to use for detection
+          input_args: preset-rtsp-restream
+          roles:
+            - detect
+            - record
+    live:
+      stream_name: living_room
+    detect:
+      enabled: false # <---- disable detection until you have a working camera feed
+      width: 1280
+      height: 720
+      fps: 5
+
+  side_door: # <------ Name the camera
+    enabled: true
+    ui:
+      order: 3
+    ffmpeg:
+      inputs:
+        - path: rtsp://localhost:8554/side_door # <----- The stream you want to use for detection
+          input_args: preset-rtsp-restream
+          roles:
+            - detect
+            - record
+    live:
+      stream_name: side_door
+    detect:
+      enabled: true # <---- disable detection until you have a working camera feed
+      width: 1280
+      height: 720
+      fps: 5
+
+    motion:
+      mask: 0,0.062,0.265,0.06,0.266,0.013,0,0.014
+version: 0.14
+camera_groups: {}
